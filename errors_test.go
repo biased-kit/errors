@@ -25,7 +25,7 @@ func TestWrap(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	err := New("%s %d", "param", 1).With("param", 1)
+	err := Newf("%s %d", "param", 1).With("param", 1)
 	if err.Error() != "param 1" {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestNew(t *testing.T) {
 		t.Fatalf(foo)
 	}
 
-	kv := err.KeyvalPairs()
+	kv := err.KeyValues()
 	if kv[0].(string) != "param" {
 		t.Fatalf("kv: %v", kv)
 	}
@@ -45,5 +45,20 @@ func TestNew(t *testing.T) {
 	if kv[1].(int) != 1 {
 		t.Fatal()
 	}
+}
 
+func TestDefer(t *testing.T) {
+	defer func() {
+		if r := recover(); r != nil {
+			err := New("err in defer")
+			frames := err.StackTrace()
+			frm, _ := frames.Next()
+			_, foo := filepath.Split(frm.Function)
+			if foo != "errors.TestDefer.func1" {
+				t.Fatal()
+			}
+		}
+	}()
+
+	panic("paniker")
 }

@@ -8,14 +8,17 @@ import (
 // E represents an error
 type E interface {
 	error
+	// StackTrace returns runtime.Frames , that represent execution stack
 	StackTrace() *runtime.Frames
-	KeyvalPairs() []interface{}
+	// KeyValues return key/value pairs that represent user-added params.
+	KeyValues() []interface{}
+	// With allows to add key/values pairs it return E in order to support "fluent interface"
+	// if count is not even the nil value is added to the end.
 	With(keyvals ...interface{}) E
 }
 
-// Error type implements the E interface.
-// It is public for serialization purpose only, in most cases you need to use E.
-type Error struct {
+// error type implements the E interface.
+type erro struct {
 	Err     error // when wrap standard error, preserve it for future use. Currently it's not used.
 	Msg     string
 	Keyvals []interface{}
@@ -23,64 +26,73 @@ type Error struct {
 }
 
 // Error produce error messafe for user
-func (e *Error) Error() string {
+func (e *erro) Error() string {
 	return e.Msg
 }
 
 // GetStack returns stack trace in order to log it.
-func (e *Error) StackTrace() *runtime.Frames {
+func (e *erro) StackTrace() *runtime.Frames {
 	return e.Stack
 }
 
 // GetKeyvals return key/value pairs describing error context. valuable for debuging purpose.
-func (e *Error) KeyvalPairs() []interface{} {
+func (e *erro) KeyValues() []interface{} {
 	return e.Keyvals
 }
 
-func (e *Error) With(keyvals ...interface{}) E {
+func (e *erro) With(keyvals ...interface{}) E {
+	if len(keyvals)%2 != 0 {
+		keyvals = append(keyvals, nil)
+	}
 	e.Keyvals = append(e.Keyvals, keyvals...)
 	return e
 }
 
 // New creates a new error
-// pattern and args means the same as for fmt.Printf()
-func New(pattern string, args ...interface{}) E {
-	msg := fmt.Sprintf(pattern, args...)
-	st := frames()
-	return &Error{
+func create(msg string, lvl int) E {
+	return &erro{
 		Msg:   msg,
-		Stack: st,
+		Stack: frames(lvl),
 	}
 }
 
-// Wrap converts standard error to errors.E.
-// In case if err is already type of errors.E the original stack trace and keyvals is preserved.
+// New creates a new error
+func New(msg string) E {
+	return create(msg, 4)
+}
+
+// New creates a new error from format string and arguments
+func Newf(format string, args ...interface{}) E {
+	msg := fmt.Sprintf(format, args...)
+	return create(msg, 4)
+}
+
+// Wrap converts standard error to errors.E adding stack trace.
+// In case if err is already type of errors.E it won't be changed.
 // If you wrap nil you'll get nil.
-func Wrap(err error, keyvals ...interface{}) E {
+func Wrap(err error) E {
 	if err == nil {
 		return nil
 	}
-
-	st := frames()
-	msg := err.Error()
 	if er, ok := err.(E); ok {
-		for _, v := range er.KeyvalPairs() {
-			keyvals = append(keyvals, v)
-		}
-		st = er.StackTrace()
+		return er
 	}
 
-	return &Error{
-		Err:     err,
-		Msg:     msg,
-		Keyvals: keyvals,
-		Stack:   st,
-	}
+	return create(err.Error(), 4)
 }
 
-func frames() *runtime.Frames {
+// WrapWith is similar to Wrap except it also could add key/values pairs.
+func WrapWith(err error, keyvals ...interface{}) E {
+	er := Wrap(err)
+	if err != nil {
+		er.With(keyvals...)
+	}
+	return er
+}
+
+func frames(lvl int) *runtime.Frames {
 	var rpc [32]uintptr
-	runtime.Callers(3, rpc[:])
+	runtime.Callers(lvl, rpc[:])
 	frames := runtime.CallersFrames(rpc[:])
 	return frames
 }
