@@ -1,6 +1,7 @@
 package errors
 
 import (
+	stderrors "errors"
 	"fmt"
 	"runtime"
 )
@@ -15,19 +16,15 @@ type E interface {
 	// With allows to add key/values pairs it return E in order to support "fluent interface"
 	// if count is not even the nil value is added to the end.
 	With(keyvals ...interface{}) E
+	// Cause returns underlaying err
+	Cause() error
 }
 
 // error type implements the E interface.
 type erro struct {
-	Err     error // when wrap standard error, preserve it for future use. Currently it's not used.
-	Msg     string
+	error
 	Keyvals []interface{}
 	Stack   *runtime.Frames
-}
-
-// Error produce error messafe for user
-func (e *erro) Error() string {
-	return e.Msg
 }
 
 // GetStack returns stack trace in order to log it.
@@ -38,6 +35,11 @@ func (e *erro) StackTrace() *runtime.Frames {
 // GetKeyvals return key/value pairs describing error context. valuable for debuging purpose.
 func (e *erro) KeyValues() []interface{} {
 	return e.Keyvals
+}
+
+// Cause returns underlaying err
+func (e *erro) Cause() error {
+	return e.error
 }
 
 func (e *erro) With(keyvals ...interface{}) E {
@@ -51,7 +53,7 @@ func (e *erro) With(keyvals ...interface{}) E {
 // New creates a new error
 func create(msg string, lvl int) E {
 	return &erro{
-		Msg:   msg,
+		error: stderrors.New(msg),
 		Stack: frames(lvl),
 	}
 }
@@ -61,7 +63,7 @@ func New(msg string) E {
 	return create(msg, 4)
 }
 
-// New creates a new error from format string and arguments
+// Newf creates a new error from format string and arguments
 func Newf(format string, args ...interface{}) E {
 	msg := fmt.Sprintf(format, args...)
 	return create(msg, 4)
@@ -74,8 +76,8 @@ func Wrap(err error) E {
 	if err == nil {
 		return nil
 	}
-	if er, ok := err.(E); ok {
-		return er
+	if e, ok := err.(E); ok {
+		return e
 	}
 
 	return create(err.Error(), 4)
@@ -83,11 +85,37 @@ func Wrap(err error) E {
 
 // WrapWith is similar to Wrap except it also could add key/values pairs.
 func WrapWith(err error, keyvals ...interface{}) E {
-	er := Wrap(err)
+	e := Wrap(err)
 	if err != nil {
-		er.With(keyvals...)
+		e.With(keyvals...)
 	}
-	return er
+	return e
+}
+
+// Unwrap returns the underlying cause of the error, if possible.
+// An error value has a cause if it implements the following
+// interface:
+//
+//     type causer interface {
+//            Cause() error
+//     }
+//
+// If the error does not implement Cause, the original error will
+// be returned. If the error is nil, nil will be returned without further
+// investigation.
+func Unwrap(err error) error {
+	type causer interface {
+		Cause() error
+	}
+
+	for err != nil {
+		cause, ok := err.(causer)
+		if !ok {
+			break
+		}
+		err = cause.Cause()
+	}
+	return err
 }
 
 func frames(lvl int) *runtime.Frames {
