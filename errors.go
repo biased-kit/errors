@@ -9,8 +9,9 @@ import (
 // E represents an error
 type E interface {
 	error
-	// StackTrace returns runtime.Frames , that represent execution stack
-	StackTrace() *runtime.Frames
+	// StackTrace returns program counters of function invocations on the calling goroutine's stack.
+	// See runtime.Callers()
+	StackTrace() []uintptr
 	// KeyValues return key/value pairs that represent user-added params.
 	KeyValues() []interface{}
 	// With allows to add key/values pairs it return E in order to support "fluent interface"
@@ -24,11 +25,11 @@ type E interface {
 type erro struct {
 	error
 	Keyvals []interface{}
-	Stack   *runtime.Frames
+	Stack   []uintptr
 }
 
-// GetStack returns stack trace in order to log it.
-func (e *erro) StackTrace() *runtime.Frames {
+// GetStack returns stack trace.
+func (e *erro) StackTrace() []uintptr {
 	return e.Stack
 }
 
@@ -118,9 +119,8 @@ func Unwrap(err error) error {
 	return err
 }
 
-func frames(lvl int) *runtime.Frames {
-	var rpc [32]uintptr
-	runtime.Callers(lvl, rpc[:])
-	frames := runtime.CallersFrames(rpc[:])
-	return frames
+func frames(lvl int) []uintptr {
+	rpc := make([]uintptr, 32)
+	runtime.Callers(lvl, rpc)
+	return rpc
 }

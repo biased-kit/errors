@@ -3,6 +3,7 @@ package errors
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -30,7 +31,8 @@ func TestNew(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	frames := err.StackTrace()
+	stack := err.StackTrace()
+	frames := runtime.CallersFrames(stack)
 	frm, _ := frames.Next()
 	_, foo := filepath.Split(frm.Function)
 	if foo != "errors.TestNew" {
@@ -51,7 +53,7 @@ func TestDefer(t *testing.T) {
 	defer func() {
 		if r := recover(); r != nil {
 			err := New("err in defer")
-			frames := err.StackTrace()
+			frames := runtime.CallersFrames(err.StackTrace())
 			frm, _ := frames.Next()
 			_, foo := filepath.Split(frm.Function)
 			if foo != "errors.TestDefer.func1" {
