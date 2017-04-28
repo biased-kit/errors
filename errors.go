@@ -86,10 +86,16 @@ func Wrap(err error) E {
 
 // WrapWith is similar to Wrap except it also could add key/values pairs.
 func WrapWith(err error, keyvals ...interface{}) E {
-	e := Wrap(err)
-	if err != nil {
-		e.With(keyvals...)
+	if err == nil {
+		return nil
 	}
+
+	e, ok := err.(E)
+	if !ok {
+		e = create(err.Error(), 4)
+	}
+
+	e.With(keyvals...)
 	return e
 }
 
