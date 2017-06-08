@@ -126,7 +126,7 @@ func Unwrap(err error) error {
 }
 
 func frames(lvl int) []uintptr {
-	rpc := make([]uintptr, 32)
-	runtime.Callers(lvl, rpc)
-	return rpc
+	rpc := make([]uintptr, 512)
+	n := runtime.Callers(lvl, rpc)
+	return rpc[:n]
 }
